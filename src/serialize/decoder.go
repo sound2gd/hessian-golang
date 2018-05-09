@@ -1,6 +1,9 @@
 package serialize
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 type HessianDecoder struct {
 	BytecodeReader
@@ -70,7 +73,51 @@ func (this *HessianDecoder) readObject() (interface{}, error) {
 		return int64(ret), nil
 
 	case 'L':
-		// TODO
+		return parseInt64(this)
+
+	case BC_DOUBLE_ZERO:
+		return float64(0), nil
+
+	case BC_DOUBLE_ONE:
+		return float64(1), nil
+	case BC_DOUBLE_BYTE:
+		return float64(this.readUInt8()), nil
+	case BC_DOUBLE_SHORT:
+		high := int64(this.readUInt8())
+		low := int64(this.readUInt8())
+		return float64(high<<8 | low), nil
+
+	case BC_DOUBLE_MILL:
+		mills, err := parseInt32(this)
+		if err != nil {
+			return nil, err
+		}
+		return float64(0.001 * mills), nil
+
+	case 'D':
+		num, err := parseInt64(this)
+		if err != nil {
+			return nil, err
+		}
+		return float64(num), nil
+
+	case BC_DATE:
+		ms, err := parseInt64(this)
+		if err != nil {
+			return nil, err
+		}
+		ums := uint64(ms)
+		return time.Time{ums, 0, nil}, nil
+
+	case BC_DATE_MINUTE:
+		ms, err := parseInt32(this)
+		if err != nil {
+			return nil, err
+		}
+		ums := uint64(ms * 60000)
+		return time.Time{ums, 0, nil}, nil
+
+		// TODO String
 
 	}
 
@@ -84,6 +131,17 @@ func parseInt32(this *HessianDecoder) (int32, error) {
 	b16 := int32(this.readUInt8())
 	b8 := int32(this.readUInt8())
 	return (b32 << 24) | (b24 << 16) | (b16 << 8) | b8, nil
+}
+
+func parseInt64(this *HessianDecoder) (int64, error) {
+	b64 := int64(this.readUInt8())
+	b56 := int64(this.readUInt8())
+	b48 := int64(this.readUInt8())
+	b32 := int64(this.readUInt8())
+	b24 := int64(this.readUInt8())
+	b16 := int64(this.readUInt8())
+	b8 := int64(this.readUInt8())
+	return b64<<56 | b56<<48 | b48<<32 | b32<<16 | b24<<16 | b16<<8 | b8, nil
 }
 
 // start message first three bytes must be 700200 in hessian 2 protocol
